@@ -3,137 +3,200 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Order Information</title>
+    <title>King Laundry - Request Delivery</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
     <style>
-        body {
-            font-family: sans-serif;
-            margin: 20px;
-            background-color: #f4f4f4;
-            color: #333;
+        /* Custom styles for the separator line, mimicking the image */
+        .separator-line {
+            width: 50%;
+            height: 2px;
+            background-color: black;
+            margin: 0 auto 10px;
         }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background-color: #fff;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #0056b3;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .order-info {
-            border: 1px solid #ddd;
-            padding: 20px;
-            border-radius: 5px;
-            background-color: #f9f9f9;
-        }
-        .order-info p {
-            margin-bottom: 10px;
-        }
-        .order-info strong {
+        .highlight-yellow {
+            background-color: yellow;
+            padding: 2px 8px;
+            font-weight: bold;
             display: inline-block;
-            width: 120px;
-        }
-        .error {
-            color: red;
-            text-align: center;
-            margin-top: 20px;
-        }
-        .loading {
-            text-align: center;
-            margin-top: 20px;
-            font-style: italic;
         }
     </style>
 </head>
-<body>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen py-6">
 
-    <div class="container" x-data="orderChecker()">
-        <h1>Order Information</h1>
+    <div class="w-full max-w-md bg-white p-6 md:p-8 rounded-lg shadow-lg" x-data="laundryOrderApp()">
+        <div class="text-center mb-6">
+            <div class="separator-line"></div>
+            <span class="highlight-yellow text-xl">Request Delivery</span>
+            <div class="separator-line mt-2"></div>
+        </div>
 
-        <div x-show="loading" class="loading">Loading order information...</div>
-        <div x-show="error" class="error" x-text="error"></div>
+        <div x-show="loading" class="text-center py-8 text-gray-600">Loading order details...</div>
+        <div x-show="error" class="text-center py-8 text-red-600 font-bold" x-text="error"></div>
 
         <template x-if="order && !loading && !error">
-            <div class="order-info">
-                <p><strong>Invoice ID:</strong> <span x-text="order.invoice_id"></span></p>
-                <p><strong>Quantity:</strong> <span x-text="order.quantity"></span></p>
-                <p><strong>Sub Total:</strong> <span x-text="order.sub_total"></span></p>
-                <p><strong>Grand Total:</strong> <span x-text="order.grand_total"></span></p>
-                <p><strong>Discount:</strong> <span x-text="order.discount"></span></p>
-                <p><strong>Type:</strong> <span x-text="order.type"></span></p>
-                <p><strong>Status:</strong> <span x-text="order.status"></span></p>
-                <p><strong>Note:</strong> <span x-text="order.note"></span></p>
-                <p><strong>Created:</strong> <span x-text="new Date(order.created).toLocaleString()"></span></p>
-                <p><strong>Updated:</strong> <span x-text="new Date(order.updated).toLocaleString()"></span></p>
+            <div>
+                <h2 class="text-2xl font-bold mb-4">King Laundry</h2>
+
+                <p class="mb-2"><strong>Invoice No.:</strong> <span x-text="order.invoice_id"></span></p>
+                <p class="mb-2"><strong>Pickup Date:</strong> <span x-text="formatDate(order.created)"></span></p>
+                <p class="mb-2"><strong>Payment Status:</strong> <span x-text="paymentStatus"></span></p>
+
+                <p class="mb-2"><strong>Quantity:</strong> <span x-text="order.quantity"></span> KG</p>
+                <template x-if="parsedItems">
+                    <ul class="list-disc pl-5 mb-4">
+                        <template x-for="(value, key) in parsedItems" :key="key">
+                            <li x-show="value > 0" class="text-sm">
+                                <span x-text="`${key.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())}: ${value}`"></span>
+                            </li>
+                        </template>
+                    </ul>
+                </template>
+
+                <p class="text-center text-2xl font-extrabold my-6">Total Price: USD <span x-text="order.grand_total ? order.grand_total.toFixed(2) : '0.00'"></span></p>
+
+                <h3 class="text-center text-xl font-bold mb-4">Pay now!</h3>
+
+                <div class="flex flex-col space-y-4">
+                    <button @click="payWith('ABA')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 ease-in-out">
+                        ABA
+                    </button>
+                    <button @click="payWith('ACLEDA')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 ease-in-out">
+                        ACLEDA BANK
+                    </button>
                 </div>
+
+                <p class="text-center text-gray-500 text-sm mt-6">Authorized by Cloth Bird</p>
+            </div>
         </template>
 
         <template x-if="!order && !loading && !error">
-            <div class="order-info">
+            <div class="text-center py-8 text-gray-600">
                 <p>No order found for the provided invoice ID. Please check the URL.</p>
+                <p class="text-sm mt-2">Example: `?invoice_id=KIN-002-012-033`</p>
             </div>
         </template>
     </div>
 
     <script>
-        function orderChecker() {
+        function laundryOrderApp() {
             return {
                 pb: null,
                 order: null,
+                orderDetails: null,
+                orderPayment: null,
                 loading: true,
                 error: null,
                 invoiceId: null,
+                parsedItems: {}, // To store parsed JSON items
+
+                get paymentStatus() {
+                    return this.orderPayment ? this.orderPayment.status : 'N/A';
+                },
 
                 init() {
-                    // Initialize PocketBase client (replace with your PocketBase URL)
-                    this.pb = new PocketBase('https://clothbird.reankhode.com'); // e.g., 'http://127.0.0.1:8090' or 'https://your-domain.com'
-
-                    // Get invoice_id from URL query parameter
+                    this.pb = new PocketBase('https://clothbird.reankhode.com'); // Replace with your PocketBase URL
                     const urlParams = new URLSearchParams(window.location.search);
                     this.invoiceId = urlParams.get('invoice_id');
 
                     if (this.invoiceId) {
-                        this.fetchOrder();
+                        this.fetchOrderData();
                     } else {
-                        this.error = "No invoice ID found in the URL. Please provide an invoice_id as a query parameter (e.g., ?invoice_id=test).";
+                        this.error = "No invoice ID found in the URL. Please provide an invoice_id as a query parameter (e.g., ?invoice_id=KIN-002-012-033).";
                         this.loading = false;
                     }
                 },
 
-                async fetchOrder() {
+                async fetchOrderData() {
                     this.loading = true;
                     this.error = null;
                     try {
-                        // Fetch the order by invoice_id
-                        // PocketBase's `getList` can be used to filter by a field.
-                        // We assume invoice_id is unique, so we expect one record.
-                        const result = await this.pb.collection('orders').getList(1, 1, {
+                        // 1. Fetch the main order by invoice_id
+                        const orderResult = await this.pb.collection('orders').getList(1, 1, {
                             filter: `invoice_id="${this.invoiceId}"`,
-                            // If you want to expand relations (like 'item' or 'user'), add them here:
-                            // expand: 'item,user'
+                            // Assuming you have a 'pickup_date' field in your 'orders' collection
+                            // and 'quantity_kg' field for total quantity in kg
                         });
 
-                        if (result.items.length > 0) {
-                            this.order = result.items[0];
-                        } else {
-                            this.order = null; // No order found
+                        if (orderResult.items.length === 0) {
+                            this.order = null;
+                            this.loading = false;
+                            return;
                         }
+                        this.order = orderResult.items[0];
+
+                        // 2. Fetch order details related to this order
+                        const orderDetailsResult = await this.pb.collection('order_details').getList(1, 1, {
+                            filter: `order="${this.order.id}"`
+                        });
+
+                        if (orderDetailsResult.items.length > 0) {
+                            this.orderDetails = orderDetailsResult.items[0];
+
+                            // *** REMOVE THE JSON.parse() IF POCKETBASE SDK HANDLES IT ***
+                            // Instead of:
+                            // try {
+                            //     this.parsedItems = JSON.parse(this.orderDetails.items);
+                            // } catch (e) {
+                            //     console.error("Error parsing items JSON:", e);
+                            //     this.parsedItems = {};
+                            // }
+                            // Do this:
+                            this.parsedItems = this.orderDetails.items; // Direct assignment, PocketBase SDK already parses it
+                            if (typeof this.parsedItems !== 'object' || this.parsedItems === null) {
+                                // Fallback if for some reason it's not an object (e.g., null or malformed data in DB)
+                                console.warn("order_details.items is not an object, initializing as empty:", this.parsedItems);
+                                this.parsedItems = {};
+                            }
+
+                        } else {
+                            this.orderDetails = null;
+                            this.parsedItems = {};
+                        }
+
+                        // 3. Fetch order payments related to this order
+                        const orderPaymentResult = await this.pb.collection('order_payments').getList(1, 1, {
+                            filter: `order="${this.order.id}"`
+                        });
+
+                        if (orderPaymentResult.items.length > 0) {
+                            this.orderPayment = orderPaymentResult.items[0];
+                        } else {
+                            this.orderPayment = null;
+                        }
+
                     } catch (e) {
-                        console.error("Error fetching order:", e);
-                        this.error = "Failed to fetch order information. Please try again later or check the invoice ID.";
+                        console.error("Error fetching order data:", e);
+                        this.error = "Failed to fetch order information. Please ensure the invoice ID is correct and try again.";
                     } finally {
                         this.loading = false;
                     }
+                },
+
+                formatDate(dateString) {
+                    if (!dateString) return 'N/A';
+                    try {
+                        const date = new Date(dateString);
+                        // Format as DD-MM-YYYY
+                        return new Intl.DateTimeFormat('en-GB', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric'
+                        }).format(date);
+                    } catch (e) {
+                        console.error("Error formatting date:", e);
+                        return 'Invalid Date';
+                    }
+                },
+
+                payWith(method) {
+                    alert(`Initiating payment with ${method}. (This would link to a payment gateway)`);
+                    // In a real application, you would redirect to a payment gateway
+                    // or open a modal for payment details.
                 }
             }
         }
     </script>
-
 </body>
 </html>
