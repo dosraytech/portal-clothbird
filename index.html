@@ -1,38 +1,139 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
-  <base href="/">
-
-  <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
-
-  <!-- iOS meta tags & icons -->
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="clothbird">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
-
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
-
-  <title>clothbird</title>
-  <link rel="manifest" href="manifest.json">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Information</title>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #0056b3;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .order-info {
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .order-info p {
+            margin-bottom: 10px;
+        }
+        .order-info strong {
+            display: inline-block;
+            width: 120px;
+        }
+        .error {
+            color: red;
+            text-align: center;
+            margin-top: 20px;
+        }
+        .loading {
+            text-align: center;
+            margin-top: 20px;
+            font-style: italic;
+        }
+    </style>
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+
+    <div class="container" x-data="orderChecker()">
+        <h1>Order Information</h1>
+
+        <div x-show="loading" class="loading">Loading order information...</div>
+        <div x-show="error" class="error" x-text="error"></div>
+
+        <template x-if="order && !loading && !error">
+            <div class="order-info">
+                <p><strong>Invoice ID:</strong> <span x-text="order.invoice_id"></span></p>
+                <p><strong>Quantity:</strong> <span x-text="order.quantity"></span></p>
+                <p><strong>Sub Total:</strong> <span x-text="order.sub_total"></span></p>
+                <p><strong>Grand Total:</strong> <span x-text="order.grand_total"></span></p>
+                <p><strong>Discount:</strong> <span x-text="order.discount"></span></p>
+                <p><strong>Type:</strong> <span x-text="order.type"></span></p>
+                <p><strong>Status:</strong> <span x-text="order.status"></span></p>
+                <p><strong>Note:</strong> <span x-text="order.note"></span></p>
+                <p><strong>Created:</strong> <span x-text="new Date(order.created).toLocaleString()"></span></p>
+                <p><strong>Updated:</strong> <span x-text="new Date(order.updated).toLocaleString()"></span></p>
+                </div>
+        </template>
+
+        <template x-if="!order && !loading && !error">
+            <div class="order-info">
+                <p>No order found for the provided invoice ID. Please check the URL.</p>
+            </div>
+        </template>
+    </div>
+
+    <script>
+        function orderChecker() {
+            return {
+                pb: null,
+                order: null,
+                loading: true,
+                error: null,
+                invoiceId: null,
+
+                init() {
+                    // Initialize PocketBase client (replace with your PocketBase URL)
+                    this.pb = new PocketBase('https://clothbird.reankhode.com'); // e.g., 'http://127.0.0.1:8090' or 'https://your-domain.com'
+
+                    // Get invoice_id from URL query parameter
+                    const urlParams = new URLSearchParams(window.location.search);
+                    this.invoiceId = urlParams.get('invoice_id');
+
+                    if (this.invoiceId) {
+                        this.fetchOrder();
+                    } else {
+                        this.error = "No invoice ID found in the URL. Please provide an invoice_id as a query parameter (e.g., ?invoice_id=test).";
+                        this.loading = false;
+                    }
+                },
+
+                async fetchOrder() {
+                    this.loading = true;
+                    this.error = null;
+                    try {
+                        // Fetch the order by invoice_id
+                        // PocketBase's `getList` can be used to filter by a field.
+                        // We assume invoice_id is unique, so we expect one record.
+                        const result = await this.pb.collection('orders').getList(1, 1, {
+                            filter: `invoice_id="${this.invoiceId}"`,
+                            // If you want to expand relations (like 'item' or 'user'), add them here:
+                            // expand: 'item,user'
+                        });
+
+                        if (result.items.length > 0) {
+                            this.order = result.items[0];
+                        } else {
+                            this.order = null; // No order found
+                        }
+                    } catch (e) {
+                        console.error("Error fetching order:", e);
+                        this.error = "Failed to fetch order information. Please try again later or check the invoice ID.";
+                    } finally {
+                        this.loading = false;
+                    }
+                }
+            }
+        }
+    </script>
+
 </body>
 </html>
