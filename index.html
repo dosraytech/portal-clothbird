@@ -86,6 +86,9 @@
                 order: null,
                 orderDetails: null,
                 orderPayment: null,
+                khqrLinks: [], // Store all relevant khqr links for the shop
+                abaLink: '',
+                acledaLink: '',
                 loading: true,
                 error: null,
                 invoiceId: null,
@@ -115,6 +118,7 @@
                         // 1. Fetch the main order by invoice_id
                         const orderResult = await this.pb.collection('orders').getList(1, 1, {
                             filter: `invoice_id="${this.invoiceId}"`,
+                            expand: `item,user,item.shop,item.service,order_details_via_order,order_payments_via_order`
                             // Assuming you have a 'pickup_date' field in your 'orders' collection
                             // and 'quantity_kg' field for total quantity in kg
                         });
@@ -166,6 +170,15 @@
                             this.orderPayment = null;
                         }
 
+                        // 4. After fetching the order and getting the shop ID, fetch payment links
+                        if (this.order.expand && this.order.expand.item && this.order.expand.item.shop) {
+                            // Access shop ID via the expanded 'item' record
+                            await this.fetchPaymentLinks(this.order.expand.item.shop.id, this.order.grand_total);
+                        } else {
+                            console.warn("Shop relation not found or expanded on order's item record. Cannot fetch payment links.");
+                            this.abaLink = '';
+                            this.acledaLink = '';
+                        }
                     } catch (e) {
                         console.error("Error fetching order data:", e);
                         this.error = "Failed to fetch order information. Please ensure the invoice ID is correct and try again.";
@@ -190,10 +203,56 @@
                     }
                 },
 
+                async fetchPaymentLinks(shopId, amount) {
+                    try {
+                        const linksResult = await this.pb.collection('khqr_links').getList(1, 50, { // Fetch up to 50 links for this shop
+                            filter: `amount="${amount}"`
+                        });
+
+                        if (linksResult.items.length > 0) {
+                            const specificLink = linksResult.items[0]; // Assuming one link per amount for a shop
+                            this.abaLink = specificLink.aba_link || '';
+                            this.acledaLink = specificLink.acleda_link || '';
+                        } else {
+                            console.log(`No specific KHQR link found for shop ${shopId} and amount ${amount}.`);
+                            this.abaLink = '';
+                            this.acledaLink = '';
+
+                            // TODO: Implement logic for default link for custom amount or default 0
+                            // Example for a default link:
+                            /*
+                            const defaultLinks = await this.pb.collection('khqr_links').getList(1, 1, {
+                                filter: `shop = "${shopId}" && amount = 0` // Or a designated 'custom_amount' entry
+                            });
+                            if (defaultLinks.items.length > 0) {
+                                this.abaLink = defaultLinks.items[0].aba_link || '';
+                                this.acledaLink = defaultLinks.items[0].acleda_link || '';
+                            } else {
+                                // Fallback if even default 0 link is not found
+                                console.warn("No specific or default KHQR link found for this shop and amount.");
+                            }
+                            */
+                        }
+                    } catch (e) {
+                        console.error("Error fetching payment links:", e);
+                        this.abaLink = '';
+                        this.acledaLink = '';
+                    }
+                },
+
                 payWith(method) {
-                    alert(`Initiating payment with ${method}. (This would link to a payment gateway)`);
-                    // In a real application, you would redirect to a payment gateway
-                    // or open a modal for payment details.
+                    let deepLink = '';
+                    if (method === 'ABA' && this.abaLink) {
+                        deepLink = this.abaLink;
+                    } else if (method === 'ACLEDA' && this.acledaLink) {
+                        deepLink = this.acledaLink;
+                    }
+
+                    if (deepLink) {
+                        window.location.href = deepLink; // This will attempt to open the app
+                    } else {
+                        alert(`No deep link available for ${method} at this amount.`);
+                    }
                 }
             }
         }
