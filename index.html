@@ -70,7 +70,7 @@
             <div class="relative p-5 border w-96 shadow-lg rounded-md bg-white">
                 <div class="text-center">
                     <h3 class="text-xl font-bold text-gray-900 mb-4">Request Delivery</h3>
-                    <div class="mt-2 px-7 py-3">
+                    <div class="mt-2 px-4 py-3">
                         <p class="text-sm text-gray-500 mb-4">Please enter your phone number for delivery.</p>
                         <input type="text" x-model="deliveryPhoneNumber" placeholder="Enter phone number" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                         <p x-show="deliveryError" class="text-red-500 text-sm mt-2" x-text="deliveryError"></p>
@@ -245,7 +245,7 @@
                     }
                 },
 
-                async submitDeliveryRequest() {
+                /*async submitDeliveryRequest() {
                     this.deliveryError = '';
                     this.deliverySuccess = '';
                     this.deliverySubmitting = true;
@@ -275,6 +275,78 @@
                         this.deliverySuccess = "Delivery request submitted successfully!";
                         this.deliveryPhoneNumber = ''; // Clear input after success
                         // You might want to close the modal after a short delay or on a new button click
+                        setTimeout(() => {
+                            this.showDeliveryModal = false;
+                            this.deliverySuccess = '';
+                        }, 2000);
+                    } catch (e) {
+                        console.error("Error submitting delivery request:", e);
+                        this.deliveryError = "Failed to submit delivery request. Please try again.";
+                    } finally {
+                        this.deliverySubmitting = false;
+                    }
+                }*/
+
+                async submitDeliveryRequest() {
+                    this.deliveryError = '';
+                    this.deliverySuccess = '';
+                    this.deliverySubmitting = true;
+
+                    if (!this.deliveryPhoneNumber) {
+                        this.deliveryError = "Please enter a phone number.";
+                        this.deliverySubmitting = false;
+                        return;
+                    }
+
+                    if (!this.order || !this.order.id) {
+                        this.deliveryError = "Order information not available for delivery request.";
+                        this.deliverySubmitting = false;
+                        return;
+                    }
+
+                    let latitude = 0;
+                    let longitude = 0;
+
+                    // --- Start of Geolocation API integration ---
+                    if (navigator.geolocation) {
+                        try {
+                            const position = await new Promise((resolve, reject) => {
+                                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                                    enableHighAccuracy: true,
+                                    timeout: 5000,
+                                    maximumAge: 0
+                                });
+                            });
+                            latitude = position.coords.latitude;
+                            longitude = position.coords.longitude;
+                            console.log("User location obtained:", latitude, longitude);
+                        } catch (geoError) {
+                            console.warn("Could not get user location:", geoError);
+                            // You can decide how to handle this. For now, we'll proceed with 0,0 or
+                            // you could set a specific error message for location.
+                            this.deliveryError = "Could not get your location. Please ensure location services are enabled.";
+                            // Optionally, you might want to stop the submission here if location is critical.
+                            // For now, we'll allow submission with default 0,0 if location fails.
+                        }
+                    } else {
+                        console.warn("Geolocation is not supported by this browser.");
+                        this.deliveryError = "Geolocation is not supported by your browser. Cannot get precise location.";
+                        // Again, decide if this should prevent submission.
+                    }
+                    // --- End of Geolocation API integration ---
+
+                    try {
+                        const data = {
+                            "order": this.order.id,
+                            "phone": this.deliveryPhoneNumber,
+                            "amount": this.order.grand_total,
+                            "latitude": latitude, // Use the obtained latitude
+                            "longitude": longitude, // Use the obtained longitude
+                            "type": "Pick"
+                        };
+                        await this.pb.collection('deliveries').create(data);
+                        this.deliverySuccess = "Delivery request submitted successfully!";
+                        this.deliveryPhoneNumber = '';
                         setTimeout(() => {
                             this.showDeliveryModal = false;
                             this.deliverySuccess = '';
