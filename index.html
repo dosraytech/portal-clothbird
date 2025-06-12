@@ -115,7 +115,8 @@
                         // 1. Fetch the main order by invoice_id
                         // Corrected filter: no space around '='
                         const orderResult = await this.pb.collection('orders').getList(1, 1, {
-                            filter: `invoice_id="${this.invoiceId}"`
+                            filter: `invoice_id="${this.invoiceId}"`,
+                            expand: `item,user,item.shop,item.service,order_details_via_order,order_payments_via_order`
                         });
 
                         if (orderResult.items.length === 0) {
