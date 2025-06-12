@@ -170,6 +170,17 @@
                             this.orderPayment = null;
                         }
 
+                        // --- Add these console.logs ---
+                        console.log("Fetched Order:", this.order);
+                        console.log("Order Expand Property:", this.order.expand);
+                        if (this.order.expand) {
+                            console.log("Expanded Item:", this.order.expand.item);
+                            if (this.order.expand.item) {
+                                console.log("Expanded Item Shop:", this.order.expand.item.shop);
+                            }
+                        }
+                        // --- End console.logs ---
+
                         // 4. After fetching the order and getting the shop ID, fetch payment links
                         if (this.order.expand && this.order.expand.item && this.order.expand.item.shop) {
                             // Access shop ID via the expanded 'item' record
