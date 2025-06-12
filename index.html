@@ -184,7 +184,7 @@
                         // 4. After fetching the order and getting the shop ID, fetch payment links
                         if (this.order.expand && this.order.expand.item && this.order.expand.item.shop) {
                             // Access shop ID via the expanded 'item' record
-                            await this.fetchPaymentLinks(this.order.expand.item.shop.id, this.order.grand_total);
+                            await this.fetchPaymentLinks(this.order.expand.item.shop, this.order.grand_total);
                         } else {
                             console.warn("Shop relation not found or expanded on order's item record. Cannot fetch payment links.");
                             this.abaLink = '';
@@ -217,7 +217,7 @@
                 async fetchPaymentLinks(shopId, amount) {
                     try {
                         const linksResult = await this.pb.collection('khqr_links').getList(1, 50, { // Fetch up to 50 links for this shop
-                            filter: `amount="${amount}"`
+                            filter: `shop="${shopId}"&&amount="${amount}"`
                         });
 
                         if (linksResult.items.length > 0) {
