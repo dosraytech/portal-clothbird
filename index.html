@@ -21,6 +21,25 @@
             font-weight: bold;
             display: inline-block;
         }
+        /* Pulse animation for the button */
+        @keyframes pulse-animation {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); /* Tailwind blue-600 */
+            }
+            70% {
+                transform: scale(1.05);
+                box-shadow: 0 0 0 10px rgba(37, 99, 235, 0);
+            }
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+            }
+        }
+
+        .pulse-effect {
+            animation: pulse-animation 2s infinite;
+        }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen py-6">
@@ -31,7 +50,7 @@
             <div>
                 <h2 class="text-2xl font-bold mb-8 text-center">
                     <span x-text="shopDetails.name"></span>
-                    <button @click="showDeliveryModal = true" class="ml-2 px-3 py-1 bg-gray-200 text-gray-700 rounded-md text-sm hover:bg-gray-300">Request Delivery</button>
+                    <button @click="showDeliveryModal = true" class="ml-2 px-3 py-1 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 font-bold shadow-md transition duration-300 ease-in-out pulse-effect">Request Delivery</button>
                 </h2>
                 <p class="mb-2"><strong>Invoice:</strong> <span x-text="order.invoice_id"></span></p>
                 <p class="mb-2"><strong>Pickup Date:</strong> <span x-text="formatDate(order.pickup_date)"></span></p>
@@ -364,7 +383,7 @@
                             "amount": this.order.grand_total,
                             "latitude": latitude, // Use the obtained latitude
                             "longitude": longitude, // Use the obtained longitude
-                            "type": "Pick"
+                            "type": "Return"
                         };
                         await this.pb.collection('deliveries').create(data);
                         this.deliverySuccess = "Delivery request submitted successfully!";
