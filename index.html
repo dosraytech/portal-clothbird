@@ -192,8 +192,8 @@
                         } else {
                             console.log(`No specific KHQR link found for shop ${shopId} and amount ${amount}. Using default links.`);
                             if (this.shopDetails) {
-                                this.abaLink = this.shopDetails.aba_default_link || '';
-                                this.acledaLink = this.shopDetails.acleda_default_link || '';
+                                this.abaLink = this.shopDetails.aba_link || '';
+                                this.acledaLink = this.shopDetails.acleda_link || '';
                             } else {
                                 console.warn("Shop details not available to fetch default links.");
                             }
