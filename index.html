@@ -30,9 +30,8 @@
         <template x-if="order && !loading && !error">
             <div>
                 <h2 class="text-2xl font-bold mb-8 text-center">
-                    <!-- <span x-text="shopDetails.name"></span> -->
-                    Request Delivery
-                    <button class="ml-2 px-3 py-1 bg-gray-200 text-gray-700 rounded-md text-sm hover:bg-gray-300">Details</button>
+                    <span x-text="shopDetails.name"></span>
+                    <button @click="showDeliveryModal = true" class="ml-2 px-3 py-1 bg-gray-200 text-gray-700 rounded-md text-sm hover:bg-gray-300">Request Delivery</button>
                 </h2>
                 <p class="mb-2"><strong>Invoice:</strong> <span x-text="order.invoice_id"></span></p>
                 <p class="mb-2"><strong>Pickup Date:</strong> <span x-text="formatDate(order.pickup_date)"></span></p>
@@ -66,6 +65,29 @@
                 <p class="text-sm mt-2">Example: `?id=KIN-000-000-001`</p>
             </div>
         </template>
+
+        <div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center" x-show="showDeliveryModal" x-transition.opacity>
+            <div class="relative p-5 border w-96 shadow-lg rounded-md bg-white">
+                <div class="text-center">
+                    <h3 class="text-xl font-bold text-gray-900 mb-4">Request Delivery</h3>
+                    <div class="mt-2 px-7 py-3">
+                        <p class="text-sm text-gray-500 mb-4">Please enter your phone number for delivery.</p>
+                        <input type="text" x-model="deliveryPhoneNumber" placeholder="Enter phone number" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                        <p x-show="deliveryError" class="text-red-500 text-sm mt-2" x-text="deliveryError"></p>
+                        <p x-show="deliverySuccess" class="text-green-600 text-sm mt-2" x-text="deliverySuccess"></p>
+                    </div>
+                    <div class="items-center px-4 py-3">
+                        <button @click="submitDeliveryRequest()" :disabled="deliverySubmitting" class="px-4 py-2 bg-blue-600 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span x-show="!deliverySubmitting">Submit Request</span>
+                            <span x-show="deliverySubmitting">Submitting...</span>
+                        </button>
+                        <button @click="showDeliveryModal = false; deliveryError = ''; deliverySuccess = ''; deliveryPhoneNumber = ''" class="mt-3 px-4 py-2 bg-gray-300 text-gray-800 text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-75">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
     <script>
         function laundryOrderApp() {
@@ -74,20 +96,25 @@
                 order: null,
                 orderDetails: null,
                 orderPayment: null,
-                shopDetails: null, // To store shop details including default links
+                shopDetails: null,
                 abaLink: '',
                 acledaLink: '',
                 loading: true,
                 error: null,
                 invoiceId: null,
                 parsedItems: {},
+                showDeliveryModal: false, // Control modal visibility
+                deliveryPhoneNumber: '', // Store phone number from input
+                deliveryError: '', // Store delivery submission errors
+                deliverySuccess: '', // Store delivery submission success message
+                deliverySubmitting: false, // To prevent multiple submissions
 
                 get paymentStatus() {
                     return this.orderPayment ? this.orderPayment.status : 'N/A';
                 },
 
                 init() {
-                    this.pb = new PocketBase('https://clothbird.reankhode.com'); // e.g., 'http://127.0.0.1:8090'
+                    this.pb = new PocketBase('https://clothbird.reankhode.com');
 
                     const urlParams = new URLSearchParams(window.location.search);
                     this.invoiceId = urlParams.get('id');
@@ -104,13 +131,9 @@
                     this.loading = true;
                     this.error = null;
                     try {
-                        // 1. Fetch the main order by invoice_id
-                        // Corrected filter: no space around '='
                         const orderResult = await this.pb.collection('orders').getList(1, 1, {
                             filter: `invoice_id="${this.invoiceId.toUpperCase()}"`,
                             expand: `item,user,item.shop,item.service,order_details_via_order,order_payments_via_order`
-                            // Assuming you have a 'pickup_date' field in your 'orders' collection
-                            // and 'quantity_kg' field for total quantity in kg
                         });
 
                         if (orderResult.items.length === 0) {
@@ -127,11 +150,8 @@
                             return;
                         }
 
-                        // 2. Fetch the shop record directly using its ID
                         this.shopDetails = await this.pb.collection('shops').getOne(this.order.expand.item.shop);
 
-                        // 3. Fetch order details related to this order
-                        // Corrected filter: no space around '='
                         const orderDetailsResult = await this.pb.collection('order_details').getList(1, 1, {
                             filter: `order="${this.order.id}"`
                         });
@@ -144,8 +164,6 @@
                             this.parsedItems = {};
                         }
 
-                        // 4. Fetch order payments related to this order
-                        // Corrected filter: no space around '='
                         const orderPaymentResult = await this.pb.collection('order_payments').getList(1, 1, {
                             filter: `order="${this.order.id}"`
                         });
@@ -156,7 +174,6 @@
                             this.orderPayment = null;
                         }
 
-                        // 5. Fetch payment links (specific or default)
                         await this.resolvePaymentLinks(this.order.expand.item.shop, this.order.grand_total);
 
 
@@ -173,7 +190,6 @@
                     this.acledaLink = '';
 
                     try {
-                        // Corrected filter: no space around '='
                         const specificLinkResult = await this.pb.collection('khqr_links').getList(1, 1, {
                             filter: `shop="${shopId}"&&amount=${amount}`
                         });
@@ -226,6 +242,48 @@
                         window.location.href = deepLink;
                     } else {
                         alert(`No deep link available for ${method} at this amount.`);
+                    }
+                },
+
+                async submitDeliveryRequest() {
+                    this.deliveryError = '';
+                    this.deliverySuccess = '';
+                    this.deliverySubmitting = true;
+
+                    if (!this.deliveryPhoneNumber) {
+                        this.deliveryError = "Please enter a phone number.";
+                        this.deliverySubmitting = false;
+                        return;
+                    }
+
+                    if (!this.order || !this.order.id) {
+                        this.deliveryError = "Order information not available for delivery request.";
+                        this.deliverySubmitting = false;
+                        return;
+                    }
+
+                    try {
+                        const data = {
+                            "order": this.order.id,
+                            "phone": this.deliveryPhoneNumber,
+                            "amount": this.order.grand_total, // Assuming delivery amount is grand_total
+                            "latitude": 0, // Placeholder, you might want to get actual location
+                            "longitude": 0, // Placeholder, you might want to get actual location
+                            "type": "Pick" // Assuming 'Pick' is the type for delivery requests
+                        };
+                        await this.pb.collection('deliveries').create(data);
+                        this.deliverySuccess = "Delivery request submitted successfully!";
+                        this.deliveryPhoneNumber = ''; // Clear input after success
+                        // You might want to close the modal after a short delay or on a new button click
+                        setTimeout(() => {
+                            this.showDeliveryModal = false;
+                            this.deliverySuccess = '';
+                        }, 2000);
+                    } catch (e) {
+                        console.error("Error submitting delivery request:", e);
+                        this.deliveryError = "Failed to submit delivery request. Please try again.";
+                    } finally {
+                        this.deliverySubmitting = false;
                     }
                 }
             }
