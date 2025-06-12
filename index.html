@@ -123,6 +123,7 @@
                             // Assuming you have a 'pickup_date' field in your 'orders' collection
                             // and 'quantity_kg' field for total quantity in kg
                         });
+                        console.error("Step1: Pass!");
 
                         if (orderResult.items.length === 0) {
                             this.order = null;
@@ -133,11 +134,13 @@
 
                         // 2. Fetch the shop record directly using its ID
                         this.shopDetails = await this.pb.collection('shops').getOne(this.order.shop);
+                        console.error("Step2: Pass!");
 
                         // 3. Fetch order details related to this order
                         const orderDetailsResult = await this.pb.collection('order_details').getList(1, 1, {
                             filter: `order="${this.order.id}"`
                         });
+                        console.error("Step3: Pass!");
 
                         if (orderDetailsResult.items.length > 0) {
                             this.orderDetails = orderDetailsResult.items[0];
@@ -157,6 +160,7 @@
                         const orderPaymentResult = await this.pb.collection('order_payments').getList(1, 1, {
                             filter: `order="${this.order.id}"`
                         });
+                        console.error("Step4: Pass!");
 
                         if (orderPaymentResult.items.length > 0) {
                             this.orderPayment = orderPaymentResult.items[0];
@@ -166,6 +170,7 @@
 
                         // 5. After fetching the order and getting the shop ID, fetch payment links
                         await this.resolvePaymentLinks(this.order.shop, this.order.grand_total);
+                        console.error("Step5: Pass!");
 
                     } catch (e) {
                         console.error("Error fetching order data:", e);
