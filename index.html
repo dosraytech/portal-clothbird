@@ -3,92 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Order Information - King Laundry</title>
+    <title>King Laundry - Request Delivery</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://unpkg.com/pocketbase/dist/pocketbase.umd.js"></script>
     <style>
-        /* No custom styles needed here anymore as the elements they styled are removed */
+        /* Custom styles for the separator line, mimicking the image */
+        .separator-line {
+            width: 50%;
+            height: 2px;
+            background-color: black;
+            margin: 0 auto 10px;
+        }
+        .highlight-yellow {
+            background-color: yellow;
+            padding: 2px 8px;
+            font-weight: bold;
+            display: inline-block;
+        }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen py-6">
 
     <div class="w-full max-w-md bg-white p-6 md:p-8 rounded-lg shadow-lg" x-data="laundryOrderApp()">
-
-        <div class="flex items-center justify-between mb-8">
-            <h1 class="text-3xl font-bold text-gray-800">Order Information</h1>
-            <button class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-md shadow-md transition duration-200">
-                Request Delivery
-            </button>
-        </div>
+        <h1>King Laundry - Request Delivery</h1>
 
         <div x-show="loading" class="text-center py-8 text-gray-600">Loading order details...</div>
         <div x-show="error" class="text-center py-8 text-red-600 font-bold" x-text="error"></div>
 
         <template x-if="order && !loading && !error">
             <div>
-                <h2 class="text-2xl font-bold text-gray-700 mb-6" x-text="shopDetails ? shopDetails.name : 'Loading Shop...'"></h2>
+                <h2 class="text-2xl font-bold mb-4">King Laundry</h2>
 
-                <div class="space-y-3 mb-6 text-gray-700">
-                    <p><strong>Invoice No.:</strong> <span x-text="order.invoice_id"></span></p>
-                    <p><strong>Pickup Date:</strong> <span x-text="formatDate(order.pickup_date)"></span></p>
-                    <p><strong>Payment Status:</strong> <span x-text="paymentStatus"></span></p>
-                    <p><strong>Quantity:</strong> <span x-text="order.quantity_kg"></span> KG</p>
-                </div>
+                <p class="mb-2"><strong>Invoice No.:</strong> <span x-text="order.invoice_id"></span></p>
+                <p class="mb-2"><strong>Pickup Date:</strong> <span x-text="formatDate(order.pickup_date)"></span></p>
+                <p class="mb-2"><strong>Payment Status:</strong> <span x-text="paymentStatus"></span></p>
 
+                <p class="mb-2"><strong>Quantity:</strong> <span x-text="order.quantity_kg"></span> KG</p>
                 <template x-if="parsedItems">
-                    <div class="mb-6">
-                        <h4 class="font-semibold text-gray-700 mb-2">Items:</h4>
-                        <ul class="list-disc pl-6 text-gray-600 text-sm space-y-1">
-                            <template x-for="(value, key) in parsedItems" :key="key">
-                                <li x-show="value > 0">
-                                    <span x-text="`${key.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())}: ${value}`"></span>
-                                </li>
-                            </template>
-                        </ul>
-                    </div>
+                    <ul class="list-disc pl-5 mb-4">
+                        <template x-for="(value, key) in parsedItems" :key="key">
+                            <li x-show="value > 0" class="text-sm">
+                                <span x-text="`${key.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())}: ${value}`"></span>
+                            </li>
+                        </template>
+                    </ul>
                 </template>
 
-                <p class="text-center text-3xl font-extrabold text-blue-700 my-8">
-                    Total Price: USD <span x-text="order.grand_total ? order.grand_total.toFixed(2) : '0.00'"></span>
-                </p>
+                <p class="text-center text-2xl font-extrabold my-6">Total Price: USD <span x-text="order.grand_total ? order.grand_total.toFixed(2) : '0.00'"></span></p>
 
-                <h3 class="text-center text-xl font-bold text-gray-700 mb-6">Pay now!</h3>
+                <h3 class="text-center text-xl font-bold mb-4">Pay now!</h3>
 
                 <div class="flex flex-col space-y-4">
-                    <button @click="payWith('ABA')" :disabled="!abaLink" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed text-lg">
+                    <button @click="payWith('ABA')" :disabled="!abaLink" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
                         ABA
                     </button>
-                    <button @click="payWith('ACLEDA')" :disabled="!acledaLink" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed text-lg">
+                    <button @click="payWith('ACLEDA')" :disabled="!acledaLink" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
                         ACLEDA BANK
                     </button>
                 </div>
 
-                <p class="text-center text-gray-500 text-sm mt-8">Authorized by Cloth Bird</p>
+                <p class="text-center text-gray-500 text-sm mt-6">Authorized by Cloth Bird</p>
             </div>
         </template>
 
         <template x-if="!order && !loading && !error">
             <div class="text-center py-8 text-gray-600">
                 <p>No order found for the provided invoice ID. Please check the URL.</p>
-                <p class="text-sm mt-2">Example: `?id=KIN-002-012-033`</p>
+                <p class="text-sm mt-2">Example: `?invoice_id=KIN-002-012-033`</p>
             </div>
         </template>
     </div>
-
-    <script>
-        function laundryOrderApp() {
-            return {
-                pb: null,
-                order: null,
-                orderDetails: null,
-                orderPayment: null,
-                shopDetails: null, // To store shop details including default links
-                abaLink: '',
-                acledaLink: '',
-                loading: true,
-                error: null,
-               
 
     <script>
         function laundryOrderApp() {
@@ -132,6 +117,8 @@
                         const orderResult = await this.pb.collection('orders').getList(1, 1, {
                             filter: `invoice_id="${this.invoiceId}"`,
                             expand: `item,user,item.shop,item.service,order_details_via_order,order_payments_via_order`
+                            // Assuming you have a 'pickup_date' field in your 'orders' collection
+                            // and 'quantity_kg' field for total quantity in kg
                         });
 
                         if (orderResult.items.length === 0) {
