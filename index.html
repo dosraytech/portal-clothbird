@@ -26,11 +26,7 @@
 <body class="bg-gray-100 flex items-center justify-center min-h-screen py-6">
 
     <div class="w-full max-w-md bg-white p-6 md:p-8 rounded-lg shadow-lg" x-data="laundryOrderApp()">
-        <div class="text-center mb-6">
-            <div class="separator-line"></div>
-            <span class="highlight-yellow text-xl">Request Delivery</span>
-            <div class="separator-line mt-2"></div>
-        </div>
+        <h1>King Laundry - Request Delivery</h1>
 
         <div x-show="loading" class="text-center py-8 text-gray-600">Loading order details...</div>
         <div x-show="error" class="text-center py-8 text-red-600 font-bold" x-text="error"></div>
@@ -40,10 +36,10 @@
                 <h2 class="text-2xl font-bold mb-4">King Laundry</h2>
 
                 <p class="mb-2"><strong>Invoice No.:</strong> <span x-text="order.invoice_id"></span></p>
-                <p class="mb-2"><strong>Pickup Date:</strong> <span x-text="formatDate(order.created)"></span></p>
+                <p class="mb-2"><strong>Pickup Date:</strong> <span x-text="formatDate(order.pickup_date)"></span></p>
                 <p class="mb-2"><strong>Payment Status:</strong> <span x-text="paymentStatus"></span></p>
 
-                <p class="mb-2"><strong>Quantity:</strong> <span x-text="order.quantity"></span> KG</p>
+                <p class="mb-2"><strong>Quantity:</strong> <span x-text="order.quantity_kg"></span> KG</p>
                 <template x-if="parsedItems">
                     <ul class="list-disc pl-5 mb-4">
                         <template x-for="(value, key) in parsedItems" :key="key">
@@ -59,10 +55,10 @@
                 <h3 class="text-center text-xl font-bold mb-4">Pay now!</h3>
 
                 <div class="flex flex-col space-y-4">
-                    <button @click="payWith('ABA')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 ease-in-out">
+                    <button @click="payWith('ABA')" :disabled="!abaLink" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
                         ABA
                     </button>
-                    <button @click="payWith('ACLEDA')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 ease-in-out">
+                    <button @click="payWith('ACLEDA')" :disabled="!acledaLink" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
                         ACLEDA BANK
                     </button>
                 </div>
@@ -86,23 +82,23 @@
                 order: null,
                 orderDetails: null,
                 orderPayment: null,
-                khqrLinks: [], // Store all relevant khqr links for the shop
-                shopDetails: null,
+                shopDetails: null, // To store shop details including default links
                 abaLink: '',
                 acledaLink: '',
                 loading: true,
                 error: null,
                 invoiceId: null,
-                parsedItems: {}, // To store parsed JSON items
+                parsedItems: {},
 
                 get paymentStatus() {
                     return this.orderPayment ? this.orderPayment.status : 'N/A';
                 },
 
                 init() {
-                    this.pb = new PocketBase('https://clothbird.reankhode.com'); // Replace with your PocketBase URL
+                    this.pb = new PocketBase('https://clothbird.reankhode.com'); // e.g., 'http://127.0.0.1:8090'
+
                     const urlParams = new URLSearchParams(window.location.search);
-                    this.invoiceId = urlParams.get('invoice_id');
+                    this.invoiceId = urlParams.get('id');
 
                     if (this.invoiceId) {
                         this.fetchOrderData();
@@ -117,13 +113,10 @@
                     this.error = null;
                     try {
                         // 1. Fetch the main order by invoice_id
+                        // Corrected filter: no space around '='
                         const orderResult = await this.pb.collection('orders').getList(1, 1, {
-                            filter: `invoice_id="${this.invoiceId}"`,
-                            expand: `item,user,item.shop,item.service,order_details_via_order,order_payments_via_order`
-                            // Assuming you have a 'pickup_date' field in your 'orders' collection
-                            // and 'quantity_kg' field for total quantity in kg
+                            filter: `invoice_id="${this.invoiceId}"`
                         });
-                        console.error("Step1: Pass!");
 
                         if (orderResult.items.length === 0) {
                             this.order = null;
@@ -132,35 +125,35 @@
                         }
                         this.order = orderResult.items[0];
 
+                        if (!this.order.shop) {
+                            console.error("Order record does not have a 'shop' relation ID. Cannot fetch payment links.");
+                            this.error = "Order data incomplete: shop information missing.";
+                            this.loading = false;
+                            return;
+                        }
+
                         // 2. Fetch the shop record directly using its ID
-                        this.shopDetails = await this.pb.collection('shops').getOne(this.order.shop);
-                        console.error("Step2: Pass!");
+                        this.shopDetails = await this.pb.collection('shops').getOne(this.order.expand.item.shop);
 
                         // 3. Fetch order details related to this order
+                        // Corrected filter: no space around '='
                         const orderDetailsResult = await this.pb.collection('order_details').getList(1, 1, {
                             filter: `order="${this.order.id}"`
                         });
-                        console.error("Step3: Pass!");
 
                         if (orderDetailsResult.items.length > 0) {
                             this.orderDetails = orderDetailsResult.items[0];
-                            this.parsedItems = this.orderDetails.items; // Direct assignment, PocketBase SDK already parses it
-                            if (typeof this.parsedItems !== 'object' || this.parsedItems === null) {
-                                // Fallback if for some reason it's not an object (e.g., null or malformed data in DB)
-                                console.warn("order_details.items is not an object, initializing as empty:", this.parsedItems);
-                                this.parsedItems = {};
-                            }
-                            
+                            this.parsedItems = this.orderDetails.items;
                         } else {
                             this.orderDetails = null;
                             this.parsedItems = {};
                         }
 
                         // 4. Fetch order payments related to this order
+                        // Corrected filter: no space around '='
                         const orderPaymentResult = await this.pb.collection('order_payments').getList(1, 1, {
                             filter: `order="${this.order.id}"`
                         });
-                        console.error("Step4: Pass!");
 
                         if (orderPaymentResult.items.length > 0) {
                             this.orderPayment = orderPaymentResult.items[0];
@@ -168,9 +161,9 @@
                             this.orderPayment = null;
                         }
 
-                        // 5. After fetching the order and getting the shop ID, fetch payment links
-                        await this.resolvePaymentLinks(this.order.shop, this.order.grand_total);
-                        console.error("Step5: Pass!");
+                        // 5. Fetch payment links (specific or default)
+                        await this.resolvePaymentLinks(this.order.expand.item.shop, this.order.grand_total);
+
 
                     } catch (e) {
                         console.error("Error fetching order data:", e);
@@ -180,30 +173,14 @@
                     }
                 },
 
-                formatDate(dateString) {
-                    if (!dateString) return 'N/A';
-                    try {
-                        const date = new Date(dateString);
-                        // Format as DD-MM-YYYY
-                        return new Intl.DateTimeFormat('en-GB', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric'
-                        }).format(date);
-                    } catch (e) {
-                        console.error("Error formatting date:", e);
-                        return 'Invalid Date';
-                    }
-                },
-
                 async resolvePaymentLinks(shopId, amount) {
-                    this.abaLink = ''; // Reset links
+                    this.abaLink = '';
                     this.acledaLink = '';
 
                     try {
-                        // First, try to get a specific KHQR link for the exact amount
+                        // Corrected filter: no space around '='
                         const specificLinkResult = await this.pb.collection('khqr_links').getList(1, 1, {
-                            filter: `shop = "${shopId}" && amount = ${amount}`
+                            filter: `shop="${shopId}"&&amount=${amount}`
                         });
 
                         if (specificLinkResult.items.length > 0) {
@@ -212,7 +189,6 @@
                             this.acledaLink = specificLink.acleda_link || '';
                             console.log("Using specific KHQR links.");
                         } else {
-                            // If no specific link, use default links from the shopDetails
                             console.log(`No specific KHQR link found for shop ${shopId} and amount ${amount}. Using default links.`);
                             if (this.shopDetails) {
                                 this.abaLink = this.shopDetails.aba_default_link || '';
@@ -220,14 +196,26 @@
                             } else {
                                 console.warn("Shop details not available to fetch default links.");
                             }
-                            // TODO: Add logic here if you have a default link for custom amounts (e.g., if amount is 0)
-                            // This would be another query to khqr_links with amount=0 if that's how you structure it.
                         }
                     } catch (e) {
                         console.error("Error resolving payment links:", e);
-                        // Fallback to empty strings on error
                         this.abaLink = '';
                         this.acledaLink = '';
+                    }
+                },
+
+                formatDate(dateString) {
+                    if (!dateString) return 'N/A';
+                    try {
+                        const date = new Date(dateString);
+                        return new Intl.DateTimeFormat('en-GB', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric'
+                        }).format(date);
+                    } catch (e) {
+                        console.error("Error formatting date:", e);
+                        return 'Invalid Date';
                     }
                 },
 
@@ -240,7 +228,7 @@
                     }
 
                     if (deepLink) {
-                        window.location.href = deepLink; // This will attempt to open the app
+                        window.location.href = deepLink;
                     } else {
                         alert(`No deep link available for ${method} at this amount.`);
                     }
