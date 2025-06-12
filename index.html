@@ -87,6 +87,7 @@
                 orderDetails: null,
                 orderPayment: null,
                 khqrLinks: [], // Store all relevant khqr links for the shop
+                shopDetails: null,
                 abaLink: '',
                 acledaLink: '',
                 loading: true,
@@ -130,36 +131,29 @@
                         }
                         this.order = orderResult.items[0];
 
-                        // 2. Fetch order details related to this order
+                        // 2. Fetch the shop record directly using its ID
+                        this.shopDetails = await this.pb.collection('shops').getOne(this.order.shop);
+
+                        // 3. Fetch order details related to this order
                         const orderDetailsResult = await this.pb.collection('order_details').getList(1, 1, {
                             filter: `order="${this.order.id}"`
                         });
 
                         if (orderDetailsResult.items.length > 0) {
                             this.orderDetails = orderDetailsResult.items[0];
-
-                            // *** REMOVE THE JSON.parse() IF POCKETBASE SDK HANDLES IT ***
-                            // Instead of:
-                            // try {
-                            //     this.parsedItems = JSON.parse(this.orderDetails.items);
-                            // } catch (e) {
-                            //     console.error("Error parsing items JSON:", e);
-                            //     this.parsedItems = {};
-                            // }
-                            // Do this:
                             this.parsedItems = this.orderDetails.items; // Direct assignment, PocketBase SDK already parses it
                             if (typeof this.parsedItems !== 'object' || this.parsedItems === null) {
                                 // Fallback if for some reason it's not an object (e.g., null or malformed data in DB)
                                 console.warn("order_details.items is not an object, initializing as empty:", this.parsedItems);
                                 this.parsedItems = {};
                             }
-
+                            
                         } else {
                             this.orderDetails = null;
                             this.parsedItems = {};
                         }
 
-                        // 3. Fetch order payments related to this order
+                        // 4. Fetch order payments related to this order
                         const orderPaymentResult = await this.pb.collection('order_payments').getList(1, 1, {
                             filter: `order="${this.order.id}"`
                         });
@@ -170,26 +164,9 @@
                             this.orderPayment = null;
                         }
 
-                        // --- Add these console.logs ---
-                        console.log("Fetched Order:", this.order);
-                        console.log("Order Expand Property:", this.order.expand);
-                        if (this.order.expand) {
-                            console.log("Expanded Item:", this.order.expand.item);
-                            if (this.order.expand.item) {
-                                console.log("Expanded Item Shop:", this.order.expand.item.shop);
-                            }
-                        }
-                        // --- End console.logs ---
+                        // 5. After fetching the order and getting the shop ID, fetch payment links
+                        await this.resolvePaymentLinks(this.order.shop, this.order.grand_total);
 
-                        // 4. After fetching the order and getting the shop ID, fetch payment links
-                        if (this.order.expand && this.order.expand.item && this.order.expand.item.shop) {
-                            // Access shop ID via the expanded 'item' record
-                            await this.fetchPaymentLinks(this.order.expand.item.shop, this.order.grand_total);
-                        } else {
-                            console.warn("Shop relation not found or expanded on order's item record. Cannot fetch payment links.");
-                            this.abaLink = '';
-                            this.acledaLink = '';
-                        }
                     } catch (e) {
                         console.error("Error fetching order data:", e);
                         this.error = "Failed to fetch order information. Please ensure the invoice ID is correct and try again.";
@@ -214,38 +191,36 @@
                     }
                 },
 
-                async fetchPaymentLinks(shopId, amount) {
+                async resolvePaymentLinks(shopId, amount) {
+                    this.abaLink = ''; // Reset links
+                    this.acledaLink = '';
+
                     try {
-                        const linksResult = await this.pb.collection('khqr_links').getList(1, 50, { // Fetch up to 50 links for this shop
-                            filter: `shop="${shopId}"&&amount="${amount}"`
+                        // First, try to get a specific KHQR link for the exact amount
+                        const specificLinkResult = await this.pb.collection('khqr_links').getList(1, 1, {
+                            filter: `shop = "${shopId}" && amount = ${amount}`
                         });
 
-                        if (linksResult.items.length > 0) {
-                            const specificLink = linksResult.items[0]; // Assuming one link per amount for a shop
+                        if (specificLinkResult.items.length > 0) {
+                            const specificLink = specificLinkResult.items[0];
                             this.abaLink = specificLink.aba_link || '';
                             this.acledaLink = specificLink.acleda_link || '';
+                            console.log("Using specific KHQR links.");
                         } else {
-                            console.log(`No specific KHQR link found for shop ${shopId} and amount ${amount}.`);
-                            this.abaLink = '';
-                            this.acledaLink = '';
-
-                            // TODO: Implement logic for default link for custom amount or default 0
-                            // Example for a default link:
-                            /*
-                            const defaultLinks = await this.pb.collection('khqr_links').getList(1, 1, {
-                                filter: `shop = "${shopId}" && amount = 0` // Or a designated 'custom_amount' entry
-                            });
-                            if (defaultLinks.items.length > 0) {
-                                this.abaLink = defaultLinks.items[0].aba_link || '';
-                                this.acledaLink = defaultLinks.items[0].acleda_link || '';
+                            // If no specific link, use default links from the shopDetails
+                            console.log(`No specific KHQR link found for shop ${shopId} and amount ${amount}. Using default links.`);
+                            if (this.shopDetails) {
+                                this.abaLink = this.shopDetails.aba_default_link || '';
+                                this.acledaLink = this.shopDetails.acleda_default_link || '';
                             } else {
-                                // Fallback if even default 0 link is not found
-                                console.warn("No specific or default KHQR link found for this shop and amount.");
+                                console.warn("Shop details not available to fetch default links.");
                             }
-                            */
+                            // TODO: Add logic here if you have a default link for custom amounts (e.g., if amount is 0)
+                            // This would be another query to khqr_links with amount=0 if that's how you structure it.
                         }
                     } catch (e) {
-                        console.error("Error fetching payment links:", e);
+                        console.error("Error resolving payment links:", e);
+                        // Fallback to empty strings on error
                         this.abaLink = '';
                         this.acledaLink = '';
                     }
