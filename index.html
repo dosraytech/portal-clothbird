@@ -125,7 +125,7 @@
                         }
                         this.order = orderResult.items[0];
 
-                        if (!this.order.shop) {
+                        if (!this.order.expand.item.shop) {
                             console.error("Order record does not have a 'shop' relation ID. Cannot fetch payment links.");
                             this.error = "Order data incomplete: shop information missing.";
                             this.loading = false;
