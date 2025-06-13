@@ -93,7 +93,7 @@
                     <h3 class="text-xl font-bold text-gray-900 mb-4">Request Delivery</h3>
                     <div class="mt-2 px-4 py-3">
                         <p class="text-sm text-gray-500 mb-4">$0.5 will be added for delivery</p>
-                        <input type="text" x-model="deliveryPhoneNumber" placeholder="Enter phone number" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                        <input type="tel" x-model="deliveryPhoneNumber" @input="formatKhmerPhoneNumber" placeholder="0xx xxx xxxx or +855 xx xxx xxxx" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                         <p x-show="deliveryError" class="text-red-500 text-sm mt-2" x-text="deliveryError"></p>
                         <p x-show="deliverySuccess" class="text-green-600 text-sm mt-2" x-text="deliverySuccess"></p>
                     </div>
@@ -398,6 +398,77 @@
                     } finally {
                         this.deliverySubmitting = false;
                     }
+                },
+
+                // --- NEW: Function to format phone number in Khmer style ---
+                formatKhmerPhoneNumber(event) {
+                    let value = event.target.value.replace(/\D/g, ''); // 1. Remove all non-digits
+
+                    // Store current cursor position to adjust it later
+                    const selectionStart = event.target.selectionStart;
+                    let newSelectionStart = selectionStart;
+
+                    let formattedValue = '';
+
+                    if (value.startsWith('0')) {
+                        // Local format: 0XX XXX XXX or 0XX XXX XXXX
+                        if (value.length <= 3) {
+                            formattedValue = value;
+                        } else if (value.length <= 6) {
+                            formattedValue = `${value.slice(0, 3)} ${value.slice(3)}`;
+                        } else if (value.length <= 9) { // 0XX XXX XXX
+                            formattedValue = `${value.slice(0, 3)} ${value.slice(3, 6)} ${value.slice(6)}`;
+                        } else { // 0XX XXX XXXX (or more, limit to 10-11 digits for common cases)
+                            formattedValue = `${value.slice(0, 3)} ${value.slice(3, 6)} ${value.slice(6, 9)} ${value.slice(9, 11)}`;
+                        }
+                    } else if (value.startsWith('855')) {
+                        // International format without '+', will add '+855 ' prefix
+                        if (value.length <= 3) {
+                            formattedValue = `+${value}`;
+                        } else if (value.length <= 5) { // +855 XX
+                            formattedValue = `+${value.slice(0, 3)} ${value.slice(3)}`;
+                        }
+                        else if (value.length <= 8) { // +855 XX XXX
+                            formattedValue = `+${value.slice(0, 3)} ${value.slice(3, 5)} ${value.slice(5)}`;
+                        } else { // +855 XX XXX XXX or +855 XX XXX XXXX
+                            formattedValue = `+${value.slice(0, 3)} ${value.slice(3, 5)} ${value.slice(5, 8)} ${value.slice(8, 12)}`;
+                        }
+                    } else if (value.startsWith('+855')) {
+                        // If user explicitly types +855, just remove the '+' for internal processing, then re-add
+                        value = value.substring(1); // Remove leading '+' for internal logic, then re-add it
+                        if (value.length <= 3) {
+                            formattedValue = `+${value}`;
+                        } else if (value.length <= 5) {
+                            formattedValue = `+${value.slice(0, 3)} ${value.slice(3)}`;
+                        }
+                        else if (value.length <= 8) {
+                            formattedValue = `+${value.slice(0, 3)} ${value.slice(3, 5)} ${value.slice(5)}`;
+                        } else {
+                            formattedValue = `+${value.slice(0, 3)} ${value.slice(3, 5)} ${value.slice(5, 8)} ${value.slice(8, 12)}`;
+                        }
+                    } else {
+                        // If doesn't start with 0 or 855/+855, keep it simple but still remove non-digits
+                        formattedValue = value;
+                    }
+
+                    // Ensure max length for common Cambodian numbers (e.g., +855 99 999 9999 is 15 chars)
+                    // Adjust this max length based on your exact requirements.
+                    if (formattedValue.length > 18) { // Example max length to prevent excessively long numbers
+                        formattedValue = formattedValue.substring(0, 18);
+                    }
+
+
+                    // Update the model and adjust cursor position to prevent jumping
+                    const oldFormattedLength = this.deliveryPhoneNumber.length;
+                    this.deliveryPhoneNumber = formattedValue.trim(); // Update Alpine.js model
+                    const newFormattedLength = this.deliveryPhoneNumber.length;
+
+                    // Adjust cursor position
+                    const lengthDifference = newFormattedLength - oldFormattedLength;
+                    newSelectionStart = selectionStart + lengthDifference;
+
+                    // Ensure cursor doesn't go beyond the new string length
+                    event.target.setSelectionRange(newSelectionStart, newSelectionStart);
                 }
             }
         }
