@@ -379,13 +379,30 @@
                     try {
                         const data = {
                             "order": this.order.id,
+                            "shop": this.shopDetails.id,
                             "phone": this.deliveryPhoneNumber,
-                            "amount": this.order.grand_total,
+                            "amount": this.shopDetails.delivery_price,
                             "latitude": latitude, // Use the obtained latitude
                             "longitude": longitude, // Use the obtained longitude
                             "type": "Return"
                         };
                         await this.pb.collection('deliveries').create(data);
+                         // --- NEW: Create notification after successful delivery request ---
+                        const notificationData = {
+                            "order": this.order.id,
+                            "shop": this.shopDetails.id,
+                            "title": "Request Delivery",
+                            "description": `Delivery Invoice ID: ${this.order.invoice_id}`,
+                            // You can add more fields if needed, like 'user' or 'content'
+                            // For 'user', if you want to notify a specific user, you'll need their ID.
+                            // If `user` in your notifications collection is a multi-relation,
+                            // you might need to pass an array of user IDs. If it's a single relation,
+                            // pass a single user ID. For simplicity, I'm omitting it for now
+                            // as the prompt didn't specify who the notification is *for*.
+                        };
+                        await this.pb.collection('notifications').create(notificationData);
+                        // --- END NEW ---
+
                         this.deliverySuccess = "Delivery request submitted successfully!";
                         this.deliveryPhoneNumber = '';
                         setTimeout(() => {
